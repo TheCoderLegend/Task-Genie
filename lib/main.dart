@@ -36,12 +36,31 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
   final Box tasksBox = Hive.box('tasksBox');
   final TextEditingController _controller = TextEditingController();
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void _addTask(String task) {
     if (task.trim().isEmpty) return;
 
-    tasksBox.add(task);
+    tasksBox.add({
+      'text': task,
+      'isCompleted': false,
+    });
+
     _controller.clear();
     Navigator.pop(context);
+  }
+
+  void _toggleTask(int index) {
+    final task = tasksBox.getAt(index);
+
+    tasksBox.putAt(index, {
+      'text': task['text'],
+      'isCompleted': !task['isCompleted'],
+    });
   }
 
   void _deleteTask(int index) {
@@ -96,9 +115,10 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
             itemCount: box.length,
             itemBuilder: (context, index) {
               final task = box.getAt(index);
+              final bool isCompleted = task['isCompleted'];
 
               return Dismissible(
-                key: Key(task.toString() + index.toString()),
+                key: Key(task['text'] + index.toString()),
                 direction: DismissDirection.endToStart,
                 background: Container(
                   color: Colors.red,
@@ -108,10 +128,22 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
                 ),
                 onDismissed: (_) => _deleteTask(index),
                 child: Card(
-                  margin: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                  margin:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: ListTile(
-                    title: Text(task.toString()),
+                    leading: Checkbox(
+                      value: isCompleted,
+                      onChanged: (_) => _toggleTask(index),
+                    ),
+                    title: Text(
+                      task['text'],
+                      style: TextStyle(
+                        decoration: isCompleted
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        color: isCompleted ? Colors.grey : Colors.black,
+                      ),
+                    ),
                   ),
                 ),
               );
