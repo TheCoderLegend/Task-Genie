@@ -16,7 +16,7 @@ void main() async {
       tasksBox.putAt(i, {
         'id': genId,
         'text': val,
-        'isCompleted': false,
+        'isCompleted': false,false
       });
     } else if (val is Map) {
       final map = Map<String, dynamic>.from(val);
