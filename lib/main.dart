@@ -10,17 +10,19 @@ void main() async {
   final Box tasksBox = Hive.box('tasksBox');
   for (int i = 0; i < tasksBox.length; i++) {
     final val = tasksBox.getAt(i);
+    // Generate a per-iteration unique id using microseconds + index
+    final String genId = '${DateTime.now().microsecondsSinceEpoch}_$i';
     if (val is String) {
       tasksBox.putAt(i, {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'id': genId,
         'text': val,
         'isCompleted': false,
       });
     } else if (val is Map) {
       final map = Map<String, dynamic>.from(val);
-      if (!map.containsKey('text')) map['text'] = map.toString();
+      if (!map.containsKey('text') || map['text'] == null) map['text'] = 'Untitled task';
       if (!map.containsKey('isCompleted')) map['isCompleted'] = false;
-      if (!map.containsKey('id')) map['id'] = DateTime.now().millisecondsSinceEpoch.toString();
+      if (!map.containsKey('id') || map['id'] == null) map['id'] = genId;
       tasksBox.putAt(i, map);
     }
   }
