@@ -5,6 +5,25 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   await Hive.openBox('tasksBox');
+  // Normalize existing stored tasks so the app can safely assume
+  // each entry is a Map with keys: 'id', 'text', 'isCompleted'.
+  final Box tasksBox = Hive.box('tasksBox');
+  for (int i = 0; i < tasksBox.length; i++) {
+    final val = tasksBox.getAt(i);
+    if (val is String) {
+      tasksBox.putAt(i, {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'text': val,
+        'isCompleted': false,
+      });
+    } else if (val is Map) {
+      final map = Map<String, dynamic>.from(val);
+      if (!map.containsKey('text')) map['text'] = map.toString();
+      if (!map.containsKey('isCompleted')) map['isCompleted'] = false;
+      if (!map.containsKey('id')) map['id'] = DateTime.now().millisecondsSinceEpoch.toString();
+      tasksBox.putAt(i, map);
+    }
+  }
   runApp(const MyApp());
 }
 
@@ -46,6 +65,7 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
     if (task.trim().isEmpty) return;
 
     tasksBox.add({
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'text': task,
       'isCompleted': false,
     });
@@ -56,10 +76,15 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
 
   void _toggleTask(int index) {
     final task = tasksBox.getAt(index);
+    if (task == null) return;
+
+    final currentText = task['text'] ?? '';
+    final currentCompleted = task['isCompleted'] == true;
 
     tasksBox.putAt(index, {
-      'text': task['text'],
-      'isCompleted': !task['isCompleted'],
+      'id': task['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      'text': currentText,
+      'isCompleted': !currentCompleted,
     });
   }
 
@@ -115,10 +140,13 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
             itemCount: box.length,
             itemBuilder: (context, index) {
               final task = box.getAt(index);
-              final bool isCompleted = task['isCompleted'];
+              if (task == null) return const SizedBox.shrink();
+              final bool isCompleted = task['isCompleted'] == true;
+              final String text = task['text'] ?? '';
+              final String id = task['id']?.toString() ?? index.toString();
 
               return Dismissible(
-                key: Key(task['text'] + index.toString()),
+                key: Key(id),
                 direction: DismissDirection.endToStart,
                 background: Container(
                   color: Colors.red,
@@ -136,12 +164,14 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
                       onChanged: (_) => _toggleTask(index),
                     ),
                     title: Text(
-                      task['text'],
+                      text,
                       style: TextStyle(
                         decoration: isCompleted
                             ? TextDecoration.lineThrough
                             : TextDecoration.none,
-                        color: isCompleted ? Colors.grey : Colors.black,
+                        color: isCompleted
+                            ? Theme.of(context).disabledColor
+                            : (DefaultTextStyle.of(context).style.color ?? Colors.black),
                       ),
                     ),
                   ),
