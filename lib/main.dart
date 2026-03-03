@@ -5,27 +5,34 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   await Hive.openBox('tasksBox');
-  // Normalize existing stored tasks so the app can safely assume
-  // each entry is a Map with keys: 'id', 'text', 'isCompleted'.
+
+  // 🔄 Normalize existing stored tasks
   final Box tasksBox = Hive.box('tasksBox');
   for (int i = 0; i < tasksBox.length; i++) {
     final val = tasksBox.getAt(i);
-    // Generate a per-iteration unique id using microseconds + index
-    final String genId = '${DateTime.now().microsecondsSinceEpoch}_$i';
+    final String genId =
+        '${DateTime.now().microsecondsSinceEpoch}_$i';
+
     if (val is String) {
       tasksBox.putAt(i, {
         'id': genId,
         'text': val,
-        'isCompleted': false,false
+        'isCompleted': false,
+        'createdAt': DateTime.now().toIso8601String(),
       });
     } else if (val is Map) {
       final map = Map<String, dynamic>.from(val);
-      if (!map.containsKey('text') || map['text'] == null) map['text'] = 'Untitled task';
-      if (!map.containsKey('isCompleted')) map['isCompleted'] = false;
-      if (!map.containsKey('id') || map['id'] == null) map['id'] = genId;
+
+      map['text'] ??= 'Untitled task';
+      map['isCompleted'] ??= false;
+      map['id'] ??= genId;
+      map['createdAt'] ??=
+          DateTime.now().toIso8601String();
+
       tasksBox.putAt(i, map);
     }
   }
+
   runApp(const MyApp());
 }
 
@@ -38,7 +45,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Task Genie',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme:
+        ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
       home: const TaskGenieHome(),
@@ -50,12 +58,14 @@ class TaskGenieHome extends StatefulWidget {
   const TaskGenieHome({super.key});
 
   @override
-  State<TaskGenieHome> createState() => _TaskGenieHomeState();
+  State<TaskGenieHome> createState() =>
+      _TaskGenieHomeState();
 }
 
 class _TaskGenieHomeState extends State<TaskGenieHome> {
   final Box tasksBox = Hive.box('tasksBox');
-  final TextEditingController _controller = TextEditingController();
+  final TextEditingController _controller =
+  TextEditingController();
 
   @override
   void dispose() {
@@ -67,9 +77,13 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
     if (task.trim().isEmpty) return;
 
     tasksBox.add({
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'id': DateTime.now()
+          .millisecondsSinceEpoch
+          .toString(),
       'text': task,
       'isCompleted': false,
+      'createdAt':
+      DateTime.now().toIso8601String(),
     });
 
     _controller.clear();
@@ -80,13 +94,12 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
     final task = tasksBox.getAt(index);
     if (task == null) return;
 
-    final currentText = task['text'] ?? '';
-    final currentCompleted = task['isCompleted'] == true;
-
     tasksBox.putAt(index, {
-      'id': task['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      'text': currentText,
-      'isCompleted': !currentCompleted,
+      'id': task['id'],
+      'text': task['text'],
+      'isCompleted':
+      !(task['isCompleted'] == true),
+      'createdAt': task['createdAt'],
     });
   }
 
@@ -107,16 +120,26 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () =>
+                Navigator.pop(context),
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () => _addTask(_controller.text),
+            onPressed: () =>
+                _addTask(_controller.text),
             child: const Text("Add"),
           ),
         ],
       ),
     );
+  }
+
+  String _formatDate(String isoDate) {
+    final date = DateTime.tryParse(isoDate);
+    if (date == null) return '';
+
+    return "${date.day}/${date.month}/${date.year} "
+        "${date.hour}:${date.minute.toString().padLeft(2, '0')}";
   }
 
   @override
@@ -142,39 +165,66 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
             itemCount: box.length,
             itemBuilder: (context, index) {
               final task = box.getAt(index);
-              if (task == null) return const SizedBox.shrink();
-              final bool isCompleted = task['isCompleted'] == true;
-              final String text = task['text'] ?? '';
-              final String id = task['id']?.toString() ?? index.toString();
+              if (task == null)
+                return const SizedBox.shrink();
+
+              final bool isCompleted =
+                  task['isCompleted'] == true;
+              final String text =
+                  task['text'] ?? '';
+              final String id =
+                  task['id']?.toString() ??
+                      index.toString();
+              final String createdAt =
+                  task['createdAt'] ?? '';
 
               return Dismissible(
                 key: Key(id),
-                direction: DismissDirection.endToStart,
+                direction:
+                DismissDirection.endToStart,
                 background: Container(
                   color: Colors.red,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  child: const Icon(Icons.delete, color: Colors.white),
+                  alignment:
+                  Alignment.centerRight,
+                  padding:
+                  const EdgeInsets.only(
+                      right: 20),
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                  ),
                 ),
-                onDismissed: (_) => _deleteTask(index),
+                onDismissed: (_) =>
+                    _deleteTask(index),
                 child: Card(
                   margin:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6),
                   child: ListTile(
                     leading: Checkbox(
                       value: isCompleted,
-                      onChanged: (_) => _toggleTask(index),
+                      onChanged: (_) =>
+                          _toggleTask(index),
                     ),
                     title: Text(
                       text,
                       style: TextStyle(
                         decoration: isCompleted
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
+                            ? TextDecoration
+                            .lineThrough
+                            : TextDecoration
+                            .none,
                         color: isCompleted
-                            ? Theme.of(context).disabledColor
-                            : (DefaultTextStyle.of(context).style.color ?? Colors.black),
+                            ? Theme.of(context)
+                            .disabledColor
+                            : Colors.black,
                       ),
+                    ),
+                    subtitle: Text(
+                      "Created: ${_formatDate(createdAt)}",
+                      style: const TextStyle(
+                          fontSize: 12),
                     ),
                   ),
                 ),
@@ -183,7 +233,8 @@ class _TaskGenieHomeState extends State<TaskGenieHome> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton:
+      FloatingActionButton(
         onPressed: _showAddDialog,
         child: const Icon(Icons.add),
       ),
